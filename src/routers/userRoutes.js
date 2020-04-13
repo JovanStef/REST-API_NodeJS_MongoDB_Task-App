@@ -1,4 +1,5 @@
 const express = require('express');
+const multer = require('multer');
 const User = require('../models/user');
 const auth = require('../middleware/auth');
 const router = new express.Router();
@@ -32,24 +33,24 @@ router.post('/users/login', async (req, res) => {
     }
 });
 
-router.post('/users/logout', auth , async (req,res)=>{
-    try{
-        req.user.tokens = req.user.tokens.filter((token)=>{
+router.post('/users/logout', auth, async (req, res) => {
+    try {
+        req.user.tokens = req.user.tokens.filter((token) => {
             return token.token !== req.token;
         });
         await req.user.save();
         res.send('Logged out');
-    }catch(err){
+    } catch (err) {
         res.status(500).send(err.message);
     }
 });
 
-router.post('/users/logoutAll' , auth , async (req,res)=>{
-    try{
-        req.user.tokens=[];
+router.post('/users/logoutAll', auth, async (req, res) => {
+    try {
+        req.user.tokens = [];
         await req.user.save();
         res.send('Logged Out All');
-    }catch(err){
+    } catch (err) {
         res.status(500).send(err.message)
     }
 })
@@ -67,7 +68,7 @@ router.get('/users', auth, async (req, res) => {
     //     res.status(400).send(err.message)
     // })
 });
-router.get('/users/me',auth, async (req, res) => {
+router.get('/users/me', auth, async (req, res) => {
     res.send(req.user);
 
 });
@@ -90,7 +91,7 @@ router.get('/users/:id', async (req, res) => {
     // })
 });
 
-router.patch('/users/me',auth, async (req, res) => {
+router.patch('/users/me', auth, async (req, res) => {
     const keys = Object.keys(req.body);
     const updateKeys = ['name', 'email', 'password', 'age'];
     const matchKeys = keys.every((key) => updateKeys.includes(key));
@@ -109,7 +110,7 @@ router.patch('/users/me',auth, async (req, res) => {
     }
 });
 
-router.delete('/users/me',auth, async (req, res) => {
+router.delete('/users/me', auth, async (req, res) => {
     try {
         // const user = await User.findByIdAndDelete(req.params.id);
         // user ? res.status(200).send(user) : res.status(404).send({ error: 'No such user' });
@@ -119,5 +120,47 @@ router.delete('/users/me',auth, async (req, res) => {
         res.status(500).send(err.message);
     }
 });
+
+const upload = multer({
+    // dest: 'avatars',
+    limits: {
+        fileSize: 1000000
+    },
+    fileFilter(req, file, cb) {
+        file.originalname.match(/\.(jpg|jpeg|png)$/) ? cb(undefined, true) : cb(new Error('Please upload an image (.jpg or .png)'))
+    }
+});
+
+//Uploading files/images
+router.post('/users/me/avatar', [auth, upload.single('avatar')], async (req, res) => {
+    // HTML <img src="datat:image/jpg;base40 , --binary code --">
+    req.user.avatar = req.file.buffer;
+    await req.user.save();
+    res.send('img uploaded');
+}, (err, req, res, next) => {
+    res.status(400).send({ err: err.message });
+});
+
+router.delete('/users/me/avatar', auth, async (req, res) => {
+    // HTML <img src="datat:image/jpg;base40 , --binary code --">
+    req.user.avatar = undefined;
+    await req.user.save();
+    res.send('img deleted');
+}, (err, req, res, next) => {
+    res.status(400).send({ err: err.message });
+});
+
+router.get('/users/:id/avatar', async (req,res)=>{
+    try{
+        const user = await User.findById(req.params.id);
+        if(!user || !user.avatar){
+            throw new Error()
+        }
+        res.set('Content-type', 'image/jpg');
+        res.send(user.avatar);
+    }catch(err){
+        res.status(400).send(err.message)
+    }
+})
 
 module.exports = router;
